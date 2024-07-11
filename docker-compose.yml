@@ -1,0 +1,15 @@
+version: '3'
+networks:
+  default:
+    name: elastic
+    external: false
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    ports:
+      - 9200:9200
+
+  winesearch:
+    image: winesearch:0.0.1
+    ports:
+      - 8080:8080
