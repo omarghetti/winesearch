@@ -2,27 +2,26 @@ package main
 
 import (
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
 	elastic "github.com/elastic/go-elasticsearch/v8"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
-	"github.com/oghetti/winesearch/routes"
-	"github.com/oghetti/winesearch/services"
 )
 
-type App struct {
-	Server   *http.Server
-	EsClient *elastic.TypedClient
+func (a *App) RegisterRoutes() {
+	r := mux.NewRouter().StrictSlash(true)
+	v1api := r.PathPrefix("/api/v1").Subrouter()
+	v1api.HandleFunc("/search", a.HandleSearch).Methods("GET")
+	a.Server.Handler = r
 }
 
 func buildNewServer() *http.Server {
-	router := mux.NewRouter().StrictSlash(true)
 
 	s := &http.Server{
-		Addr:    ":8080",
-		Handler: router,
+		Addr: ":8080",
 	}
 
 	return s
@@ -38,8 +37,9 @@ func getEnv(key string) string {
 	return os.Getenv(key)
 
 }
+
 func main() {
-	client, err := elastic.NewTypedClient(elastic.Config{
+	client, err := elastic.NewClient(elastic.Config{
 		Addresses: []string{
 			getEnv("ELASTICSEARCH_URL"),
 		},
@@ -49,17 +49,15 @@ func main() {
 		log.Fatalf("Error creating the ES client: %s", err)
 	}
 
-	server := buildNewServer()
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	app := &App{
-		Server:   server,
-		EsClient: client,
+		Server:        buildNewServer(),
+		ElasticClient: client,
+		Logger:        logger,
 	}
 
-	// Register routes
-	searchService := services.NewSearchService(app.EsClient)
-	searchRouter := routes.NewSearchRouter(searchService)
-	searchRouter.RegisterRoutes(app.Server.Handler.(*mux.Router))
+	app.RegisterRoutes()
 
 	log.Fatal(app.Server.ListenAndServe())
 
